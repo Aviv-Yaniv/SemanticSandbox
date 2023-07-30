@@ -7,7 +7,9 @@ using Microsoft.SemanticKernel.CoreSkills;
 using Microsoft.SemanticKernel.Memory;
 using Microsoft.SemanticKernel.Orchestration;
 using Microsoft.SemanticKernel.SkillDefinition;
+using Microsoft.SemanticKernel.Skills.Document;
 using semantic_sandbox.Skills;
+using System;
 using System.Net;
 
 public sealed class SemanticKernelExample
@@ -21,6 +23,30 @@ public sealed class SemanticKernelExample
     public SemanticKernelExample(IKernel kernel, ILogger logger) =>
             (_kernel, _memorySkill, _logger) = (kernel, new(), logger);
 
+    private async void MemorySanityTest()
+    {
+        string ask = "Find function";
+        Console.WriteLine("===========================\n" +
+                            "Query: " + ask + "\n");
+
+        var memories = _kernel.Memory.SearchAsync(MemoryCollectionName, ask, limit: 5, minRelevanceScore: 0.2);
+
+        var i = 0;
+        await foreach (MemoryQueryResult memory in memories)
+        {
+            Console.WriteLine($"Result {++i}:");
+            var prompt = @"Answer: {{$input}} \n Referring to: " + memory.Metadata.Text;
+            var ans = _kernel.CreateSemanticFunction(prompt, maxTokens: 5 * 1024);
+            Console.WriteLine("  answer: " + await ans.InvokeAsync(ask));
+
+            Console.WriteLine();
+            Console.WriteLine("  URL:     : " + memory.Metadata.Id);
+            Console.WriteLine("  Title    : " + memory.Metadata.Description);
+            Console.WriteLine("  Relevance: " + memory.Relevance);
+            Console.WriteLine();
+        }
+    }
+
     public async Task RunAsync()
     {
         var context = _kernel.CreateNewContext();
@@ -31,7 +57,7 @@ public sealed class SemanticKernelExample
         //context = _kernel.CreateNewContext();
 
         context[TextMemorySkill.CollectionParam] = MemoryCollectionName;
-        context[TextMemorySkill.LimitParam] = "5";
+        context[TextMemorySkill.LimitParam] = "2";
 
         while (true)
         {
@@ -41,8 +67,10 @@ public sealed class SemanticKernelExample
 
             var query = Console.ReadLine();
             context["query"] = query;
-            var response = await pc.InvokeAsync(context, log: _logger);
 
+            // MemorySanityTest();
+
+            var response =  await pc.InvokeAsync(context, log: _logger);
             WriteResponse(response);
         }
     }
