@@ -75,7 +75,8 @@ foreach (var entry in githubFiles)
         description: entry.Value,
         text: segment, //entry.Value,
         externalId: entry.Key,
-        externalSourceName: "GitHub");
+        externalSourceName: "GitHub").ConfigureAwait(true);
+        break;
     }
 
     Console.WriteLine($"  URL {++i} saved");
@@ -91,9 +92,9 @@ i = 0;
 await foreach (MemoryQueryResult memory in memories)
 {
     Console.WriteLine($"Result {++i}:");
-    var prompt = @"Answer: {{$input}} \n Referring to: " + memory.Metadata.Text;
+    var prompt = @"Answer: {{$input}} \n Referring to: " + ReadFile(url: memory.Metadata.Id);
     var ans = kernel.CreateSemanticFunction(prompt, maxTokens: 5 * 1024);
-    Console.WriteLine("  answer: " + await ans.InvokeAsync(ask));
+    Console.WriteLine("  answer: " + await ans.InvokeAsync(ask).ConfigureAwait(true));
 
     Console.WriteLine();
     Console.WriteLine("  URL:     : " + memory.Metadata.Id);
