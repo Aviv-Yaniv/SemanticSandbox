@@ -1,15 +1,10 @@
-﻿using DocumentFormat.OpenXml.Wordprocessing;
-using log4net;
-using log4net.Repository.Hierarchy;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.CoreSkills;
 using Microsoft.SemanticKernel.Memory;
 using Microsoft.SemanticKernel.Orchestration;
 using Microsoft.SemanticKernel.SkillDefinition;
-using Microsoft.SemanticKernel.Skills.Document;
+using Microsoft.SemanticKernel.Skills.Core;
 using semantic_sandbox.Skills;
-using System;
 using System.Net;
 
 public sealed class SemanticKernelExample
@@ -18,10 +13,9 @@ public sealed class SemanticKernelExample
     private const string MemoryCollectionName = "Kusto";
     private readonly IKernel _kernel;
     private readonly TextMemorySkill _memorySkill;
-    private readonly ILogger _logger;
 
-    public SemanticKernelExample(IKernel kernel, ILogger logger) =>
-            (_kernel, _memorySkill, _logger) = (kernel, new(), logger);
+    public SemanticKernelExample(IKernel kernel) =>
+            (_kernel, _memorySkill) = (kernel, new());
 
     private async void MemorySanityTest()
     {
@@ -47,8 +41,30 @@ public sealed class SemanticKernelExample
         }
     }
 
+    private async void AutoCompleteSanityTest()
+    {
+        string prompt = "What is the answer to life and the universe?";
+        
+        var answer = _kernel.CreateNewContext();
+
+        try
+        {
+            var chatFunction = _kernel.CreateSemanticFunction(prompt, maxTokens: 256, topP: 0.2, temperature: 1);
+            answer = chatFunction.InvokeAsync(prompt).Result;
+        }
+        catch (Exception e)
+        {
+            await Console.Out.WriteLineAsync(e.ToString());
+        }
+        
+        Console.WriteLine("Answer: " + answer);
+    }
+
     public async Task RunAsync()
     {
+        // AutoCompleteSanityTest();
+        // return;
+
         var context = _kernel.CreateNewContext();
         await BuildMemory(context);
 
@@ -57,7 +73,9 @@ public sealed class SemanticKernelExample
         //context = _kernel.CreateNewContext();
 
         context[TextMemorySkill.CollectionParam] = MemoryCollectionName;
-        context[TextMemorySkill.LimitParam] = "2";
+        context[TextMemorySkill.LimitParam] = "3";
+
+        // MemorySanityTest();
 
         while (true)
         {
@@ -68,9 +86,7 @@ public sealed class SemanticKernelExample
             var query = Console.ReadLine();
             context["query"] = query;
 
-            // MemorySanityTest();
-
-            var response =  await pc.InvokeAsync(context, log: _logger);
+            var response =  await pc.InvokeAsync(query);
             WriteResponse(response);
         }
     }
@@ -167,11 +183,12 @@ public sealed class SemanticKernelExample
         var CredentialTokens = File.ReadAllText(@"../../../CREDENTIALS.txt").Split(",");
         var (azureEndpoint, apiKey, embeddingDeploymentName, textDeployment) = (CredentialTokens[0], CredentialTokens[1], CredentialTokens[2], CredentialTokens[3]);
 
-        var kernel = Kernel.Builder.Configure(c =>
-            c.AddAzureTextEmbeddingGenerationService("embedding", embeddingDeploymentName, azureEndpoint, apiKey)
-            .AddAzureChatCompletionService("chat", textDeployment, azureEndpoint, apiKey))
-            .WithMemoryStorage(new VolatileMemoryStore())
-            .Build();
+        builder.WithAzureTextEmbeddingGenerationService(embeddingDeploymentName, azureEndpoint, apiKey);
+        builder.WithAzureTextCompletionService(textDeployment, azureEndpoint, apiKey);
+
+        builder.WithMemoryStorage(new VolatileMemoryStore());
+
+        var kernel = builder.Build();
 
         return kernel;
     }

@@ -1,5 +1,6 @@
 ﻿using Microsoft.SemanticKernel.Orchestration;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.SkillDefinition;
 
 namespace semantic_sandbox.Skills
 {
@@ -19,6 +20,6 @@ Question: {{$query}}
 Answer:
 ";
         internal static ISKFunction AddConsultantProfile(this IKernel kernel) =>
-            kernel.CreateSemanticFunction(PromptTemplate, maxTokens: 256, topP: 0.2);
+            kernel.CreateSemanticFunction(PromptTemplate, maxTokens: 256, topP: 0.2, temperature: 1);
     }
 }
