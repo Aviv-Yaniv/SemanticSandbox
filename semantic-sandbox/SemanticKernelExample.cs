@@ -1,7 +1,10 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Azure;
+using DocumentFormat.OpenXml.Wordprocessing;
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Memory;
 using Microsoft.SemanticKernel.Orchestration;
+using Microsoft.SemanticKernel.SemanticFunctions;
 using Microsoft.SemanticKernel.SkillDefinition;
 using Microsoft.SemanticKernel.Skills.Core;
 using semantic_sandbox.Skills;
@@ -30,8 +33,11 @@ public sealed class SemanticKernelExample
         {
             Console.WriteLine($"Result {++i}:");
             var prompt = @"Answer: {{$input}} \n Referring to: " + memory.Metadata.Text;
-            var ans = _kernel.CreateSemanticFunction(prompt, maxTokens: 5 * 1024);
-            Console.WriteLine("  answer: " + await ans.InvokeAsync(ask));
+            var ans = _kernel.CreateSemanticFunction(prompt, maxTokens: 256);
+            //var context = _kernel.CreateNewContext();
+            //context["input"] = ask;
+            var response = await ans.InvokeAsync(ask);
+            Console.WriteLine("  answer: " + response);
 
             Console.WriteLine();
             Console.WriteLine("  URL:     : " + memory.Metadata.Id);
@@ -60,35 +66,68 @@ public sealed class SemanticKernelExample
         Console.WriteLine("Answer: " + answer);
     }
 
+    public ISKFunction CreateConsultant()
+    {
+        const string PromptTemplate = @"
+        I am a consultant who answers questions according to my experience.
+
+        I ensure my responses contain only the most relevant information to questions I am asked.
+
+        Base on 'relevant information' when writing a response to answer a question.
+
+        relevant information: {{recall $query}}
+
+        Question: {{$query}}
+
+        Answer:
+        ";
+
+        return _kernel.CreateSemanticFunction(promptTemplate: PromptTemplate, maxTokens: 256);
+    }
+
     public async Task RunAsync()
     {
         // AutoCompleteSanityTest();
         // return;
 
-        var context = _kernel.CreateNewContext();
-        await BuildMemory(context);
+        BuildMemory();
 
         _kernel.ImportSkill(_memorySkill);
-        var pc = _kernel.AddConsultantProfile();
-        //context = _kernel.CreateNewContext();
-
+        //var pc = _kernel.AddConsultantProfile();
+        var pc = CreateConsultant();
+        var context = _kernel.CreateNewContext();
+        
         context[TextMemorySkill.CollectionParam] = MemoryCollectionName;
         context[TextMemorySkill.LimitParam] = "3";
 
         // MemorySanityTest();
+        // return;
+
+        var history = "";
+        context["history"] = history;
+        Func<string, Task> Chat = async (string input) => {
+            // Save new message in the context variables
+            context["query"] = input;
+
+            // Process the user message and get an answer
+            var answer = await pc.InvokeAsync(context);
+
+            // Append the new interaction to the chat history
+            history += $"\nUser: {input}\nChatBot: {answer}\n";
+            context["history"] = history;
+
+            // Show the bot response
+            WriteResponse(context);
+        };
 
         while (true)
         {
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("Enter question:");
             Console.ResetColor();
-
-            var query = Console.ReadLine();
-            context["query"] = query;
-
-            var response =  await pc.InvokeAsync(query);
-            WriteResponse(response);
-        }
+            var input = Console.ReadLine();
+            await Chat(input);
+        }        
     }
 
     static string ReadFile(string url)
@@ -134,11 +173,11 @@ public sealed class SemanticKernelExample
         }
     }
 
-    private async Task BuildMemory(SKContext context)
+    private void BuildMemory()
     {
         foreach ((string text, string name) in GetMemoriesData())
         {
-            await AddSingleMemory(text, name);
+            AddSingleMemory(text, name).Wait();
         }
     }
 
