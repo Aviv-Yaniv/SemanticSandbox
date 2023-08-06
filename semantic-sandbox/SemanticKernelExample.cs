@@ -89,8 +89,6 @@ public sealed class SemanticKernelExample
         // AutoCompleteSanityTest();
         // return;
 
-        BuildMemory();
-
         //var pc = _kernel.AddConsultantProfile();
         var pc = CreateConsultant();
         var context = _kernel.CreateNewContext();
@@ -148,7 +146,7 @@ public sealed class SemanticKernelExample
         return content;
     }
 
-    private IEnumerable<(string, string)> GetMemoriesData()
+    private static IEnumerable<(string, string)> GetMemoriesData()
     {
         var githubFiles = new Dictionary<string, string>()
         {
@@ -182,18 +180,18 @@ public sealed class SemanticKernelExample
         }
     }
 
-    private void BuildMemory()
+    private static void BuildMemory(IKernel kernel)
     {
         foreach ((string text, string name) in GetMemoriesData())
         {
-            AddSingleMemory(text, name).Wait();
+            AddSingleMemory(kernel, text, name).Wait();
         }
     }
 
-    private async Task AddSingleMemory(string text, string name)
+    private static async Task AddSingleMemory(IKernel kernel, string text, string name)
     {
         var sections = text
-                    .Split($"{Environment.NewLine}{Environment.NewLine}", StringSplitOptions.RemoveEmptyEntries)
+                    .Split($"\n\n", StringSplitOptions.RemoveEmptyEntries)
                     .Where(s => s.Split(" ").Length > 2)
                     .Select(e => e.Trim())
                     .ToArray();
@@ -208,7 +206,7 @@ public sealed class SemanticKernelExample
             Console.WriteLine($"Storing: {index}/{sections.Length}");
             Console.ResetColor();
             Console.WriteLine(section);
-            await _kernel.Memory.SaveInformationAsync(MemoryCollectionName, section, $"ph-{name}-{index + 1:00}");
+            await kernel.Memory.SaveInformationAsync(MemoryCollectionName, section, $"ph-{name}-{index + 1:00}");
         }
 
         Console.WriteLine($"Completed adding new memory!");
@@ -238,7 +236,9 @@ public sealed class SemanticKernelExample
         
         var kernel = builder.Build();
         
-        kernel.ImportSkill(kernel.Memory);
+        BuildMemory(kernel);
+        
+        var x = kernel.ImportSkill(new TextMemorySkill(kernel.Memory));
 
         return kernel;
     }
