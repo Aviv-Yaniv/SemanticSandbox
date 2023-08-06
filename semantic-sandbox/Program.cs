@@ -11,6 +11,9 @@ public class Program
         // Sanity.ChatSanityAsync().Wait();
         // return;
 
+        // Sanity.MemorySanityAsync().Wait();
+        // return;
+
         var kernel = SemanticKernelExample.GetKernel();
         var o = new SemanticKernelExample(kernel);
         o.RunAsync().Wait();

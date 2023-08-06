@@ -17,8 +17,7 @@ public sealed class SemanticKernelExample
     private readonly IKernel _kernel;
     private readonly TextMemorySkill _memorySkill;
 
-    public SemanticKernelExample(IKernel kernel) =>
-            (_kernel, _memorySkill) = (kernel, new());
+    public SemanticKernelExample(IKernel kernel) => (_kernel) = (kernel);
 
     private async void MemorySanityTest()
     {
@@ -92,7 +91,6 @@ public sealed class SemanticKernelExample
 
         BuildMemory();
 
-        _kernel.ImportSkill(_memorySkill);
         //var pc = _kernel.AddConsultantProfile();
         var pc = CreateConsultant();
         var context = _kernel.CreateNewContext();
@@ -109,8 +107,19 @@ public sealed class SemanticKernelExample
             // Save new message in the context variables
             context["query"] = input;
 
-            // Process the user message and get an answer
-            var answer = await pc.InvokeAsync(context);
+            SKContext answer;
+            
+            try
+            {
+                // Process the user message and get an answer
+                answer = pc.InvokeAsync(context).Result;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+            
 
             // Append the new interaction to the chat history
             history += $"\nUser: {input}\nChatBot: {answer}\n";
@@ -226,8 +235,10 @@ public sealed class SemanticKernelExample
         builder.WithAzureTextCompletionService(textDeployment, azureEndpoint, apiKey);
 
         builder.WithMemoryStorage(new VolatileMemoryStore());
-
+        
         var kernel = builder.Build();
+        
+        kernel.ImportSkill(kernel.Memory);
 
         return kernel;
     }

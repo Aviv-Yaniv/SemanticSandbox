@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.SemanticKernel.Skills.Core;
+using DocumentFormat.OpenXml.Wordprocessing;
 
 static class Sanity
 {
@@ -25,18 +27,6 @@ static class Sanity
         builder.WithMemoryStorage(new VolatileMemoryStore());
 
         var kernel = builder.Build();
-
-        /*
-        var kernel = builder.Build();
-
-        var kernel = Kernel.Builder.Configure(c =>
-            c
-            .AddAzureChatCompletionService("chat", textDeployment, azureEndpoint, apiKey)
-            //.AddAzureTextEmbeddingGenerationService("embedding", embeddingDeploymentName, azureEndpoint, apiKey)
-            )
-            //.WithMemoryStorage(new VolatileMemoryStore())
-            .Build();
-        */
 
         string skPrompt =
 """
@@ -81,5 +71,48 @@ Summarize the content above.
         var summary = await summaryFunction.InvokeAsync(input);
 
         Console.WriteLine(summary);
+    }
+
+    public static async Task MemorySanityAsync()
+    {
+        var builder = new KernelBuilder();
+
+        var CredentialTokens = File.ReadAllText(@"../../../CREDENTIALS.txt").Split(",");
+        var (azureEndpoint, apiKey, embeddingDeploymentName, textDeployment) = (CredentialTokens[0], CredentialTokens[1], CredentialTokens[2], CredentialTokens[3]);
+
+        builder.WithAzureTextEmbeddingGenerationService(
+         embeddingDeploymentName,   // Azure OpenAI Deployment Name
+         azureEndpoint,             // Azure OpenAI Endpoint
+         apiKey);                   // Azure OpenAI Key
+        builder.WithAzureTextCompletionService(textDeployment, azureEndpoint, apiKey);
+
+        builder.WithMemoryStorage(new VolatileMemoryStore());
+
+        var kernel = builder.Build();
+
+        const string MemoryCollectionName = "aboutMe";
+
+        await kernel.Memory.SaveInformationAsync(MemoryCollectionName, id: "info1", text: "My name is Andrea");
+        await kernel.Memory.SaveInformationAsync(MemoryCollectionName, id: "info2", text: "I currently work as a tourist operator");
+        await kernel.Memory.SaveInformationAsync(MemoryCollectionName, id: "info3", text: "I currently live in Seattle and have been living there since 2005");
+        await kernel.Memory.SaveInformationAsync(MemoryCollectionName, id: "info4", text: "I visited France and Italy five times since 2015");
+        await kernel.Memory.SaveInformationAsync(MemoryCollectionName, id: "info5", text: "My family is from New York");
+
+        var questions = new[]
+        {
+            "what is my name?",
+            "where do I live?",
+            "where is my family from?",
+            "where have I traveled?",
+            "what do I do for work?",
+        };
+
+        foreach (var q in questions)
+        {
+            await foreach (var response in kernel.Memory.SearchAsync(MemoryCollectionName, q))
+            {
+                Console.WriteLine($"Question : {q} & Response : {response?.Metadata.Text}");   
+            }
+        }
     }
 }
