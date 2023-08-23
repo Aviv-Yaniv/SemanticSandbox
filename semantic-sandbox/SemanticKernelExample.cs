@@ -100,6 +100,7 @@ public sealed class SemanticKernelExample
         // return;
 
         var history = "";
+        bool useHistory = false;
         context["history"] = history;
         Func<string, Task> Chat = async (string input) => {
             // Save new message in the context variables
@@ -117,11 +118,14 @@ public sealed class SemanticKernelExample
                 Console.WriteLine(e);
                 throw;
             }
-            
 
-            // Append the new interaction to the chat history
-            history += $"\nUser: {input}\nChatBot: {answer}\n";
-            context["history"] = history;
+
+            if (useHistory)
+            {
+                // Append the new interaction to the chat history
+                history += $"\nUser: {input}\nChatBot: {answer}\n";
+                context["history"] = history;
+            }
 
             // Show the bot response
             WriteResponse(context);
